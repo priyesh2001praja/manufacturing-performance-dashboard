@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manufacturing Performance Report</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f0f0; color: #333; font-size: 12px; }
+        .dashboard { display: flex; height: 100vh; overflow: hidden; }
+        
+        .sidebar { width: 160px; background: #fff; border-right: 1px solid #ddd; flex-shrink: 0; display: flex; flex-direction: column; padding-top: 15px; }
+        .sidebar-title { padding: 0 15px 15px 15px; font-size: 14px; font-weight: 600; color: #252423; line-height: 1.3; }
+        .sidebar-subtitle { font-size: 11px; font-weight: 400; color: #605e5c; }
+        .nav-item { padding: 15px 15px; cursor: pointer; font-size: 13px; color: #323130; border: 1px solid #e1dfdd; margin: 4px 10px; background: #fff; transition: all 0.15s; }
+        .nav-item:hover { background: #f3f2f1; }
+        .nav-item.active { background: #1a1a2e; color: #fff; border-color: #1a1a2e; }
+        
+        .filter-section { padding: 15px; margin-top: auto; border-top: 1px solid #e1dfdd; }
+        .filter-label { font-size: 11px; color: #323130; margin-bottom: 6px; font-weight: 600; }
+        .filter-select { width: 100%; padding: 8px 10px; border: 1px solid #8a8886; border-radius: 2px; font-size: 12px; margin-bottom: 12px; background: #fff; color: #323130; cursor: pointer; }
+        .filter-select:focus { border-color: #0078d4; outline: none; }
+        .reset-btn { width: 100%; padding: 8px; background: #1a1a2e; color: #fff; border: none; cursor: pointer; font-size: 11px; margin-top: 5px; }
+        .reset-btn:hover { background: #2d2d4a; }
+        .filter-badge { background: #fff4ce; color: #8a6914; padding: 6px 10px; font-size: 10px; margin-top: 10px; border-radius: 2px; display: none; }
+        .filter-badge.show { display: block; }
+        
+        .main { flex: 1; padding: 20px; background: #f0f0f0; overflow: hidden; display: flex; flex-direction: column; }
+        .page-title { font-size: 22px; font-weight: 600; color: #252423; margin-bottom: 16px; }
+        
+        .kpi-row { display: flex; gap: 12px; margin-bottom: 12px; }
+        .kpi-card { background: #fff; border: 1px solid #e1dfdd; padding: 16px 20px; flex: 1; box-shadow: 0 1.6px 3.6px rgba(0,0,0,0.03); transition: all 0.3s; }
+        .kpi-card.updating { opacity: 0.6; }
+        .kpi-label { font-size: 13px; color: #605e5c; margin-bottom: 4px; font-weight: 400; }
+        .kpi-value { font-size: 32px; font-weight: 600; color: #252423; letter-spacing: -0.5px; }
+        
+        .charts-row { display: flex; gap: 12px; margin-bottom: 12px; flex: 1; min-height: 0; }
+        .chart-box { background: #fff; border: 1px solid #e1dfdd; padding: 12px 15px; flex: 1; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 1.6px 3.6px rgba(0,0,0,0.03); }
+        .chart-box.w40 { flex: 0.85; }
+        .chart-box.w60 { flex: 1.15; }
+        .chart-box.w30 { flex: 0.7; }
+        .chart-box.w70 { flex: 1.3; }
+        .chart-title { font-size: 11px; font-weight: 600; color: #605e5c; margin-bottom: 8px; }
+        .chart-area { flex: 1; position: relative; min-height: 0; }
+        
+        .gauge-container { position: relative; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
+        .gauge-value { position: absolute; bottom: 20%; left: 50%; transform: translateX(-50%); text-align: center; }
+        .gauge-number { font-size: 28px; font-weight: 600; color: #252423; }
+        .gauge-label { font-size: 10px; color: #a19f9d; margin-top: 2px; }
+        
+        .chart-legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 8px; font-size: 11px; color: #605e5c; }
+        .legend-item { display: flex; align-items: center; gap: 5px; }
+        .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+        
+        .data-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+        .data-table th { text-align: left; padding: 8px 10px; background: #faf9f8; color: #605e5c; font-weight: 600; border-bottom: 1px solid #e1dfdd; font-size: 11px; }
+        .data-table td { padding: 8px 10px; border-bottom: 1px solid #f3f2f1; color: #323130; }
+        .data-table tr:hover { background: #faf9f8; }
+        .data-table tr.highlight { background: #fff4ce; }
+        .cell-green { background: #dff6dd; color: #107c10; font-weight: 600; }
+        .cell-yellow { background: #fff4ce; color: #c19c00; font-weight: 600; }
+        .cell-red { background: #fde7e9; color: #d13438; font-weight: 600; }
+        
+        .stacked-100-bar { margin-bottom: 8px; }
+        .stacked-100-label { font-size: 11px; color: #323130; margin-bottom: 4px; }
+        .stacked-100-track { height: 24px; display: flex; background: #f3f2f1; overflow: hidden; }
+        .stacked-100-segment { display: flex; align-items: center; justify-content: center; color: #fff; font-size: 10px; font-weight: 600; }
+        
+        .page { display: none; flex-direction: column; height: 100%; }
+        .page.active { display: flex; }
+        .content-area { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+        
+        .treemap { display: grid; gap: 2px; height: 100%; }
+        .treemap-cell { display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-start; padding: 10px; color: #fff; font-weight: 600; }
+        .treemap-cell-value { font-size: 18px; }
+        .treemap-cell-label { font-size: 10px; opacity: 0.9; }
+    </style>
+</head>
+<body>
+    <div class="dashboard">
+        <div class="sidebar">
+            <div class="sidebar-title">Manufacturing<br><span class="sidebar-subtitle">Performance Report</span></div>
+            <div class="nav-item active" onclick="showPage('overview', this)">Overview</div>
+            <div class="nav-item" onclick="showPage('quality', this)">Quality</div>
+            <div class="nav-item" onclick="showPage('process', this)">Process</div>
+            <div class="nav-item" onclick="showPage('equipment', this)">Equipment</div>
+            <div class="filter-section">
+                <div class="filter-label">Product Line</div>
+                <select class="filter-select" id="lineFilter" onchange="applyFilters()">
+                    <option value="All">All</option>
+                    <option value="Line A">Line A</option>
+                    <option value="Line B">Line B</option>
+                    <option value="Line C">Line C</option>
+                    <option value="Line D">Line D</option>
+                </select>
+                <div class="filter-label">Shift</div>
+                <select class="filter-select" id="shiftFilter" onchange="applyFilters()">
+                    <option value="All">All</option>
+                    <option value="Shift 1">Shift 1</option>
+                    <option value="Shift 2">Shift 2</option>
+                    <option value="Shift 3">Shift 3</option>
+                </select>
+                <button class="reset-btn" onclick="resetFilters()">Reset Filters</button>
+                <div class="filter-badge" id="filterBadge">Filtered</div>
+            </div>
+        </div>
+        
+        <div class="main">
+            <!-- PAGE 1: Overview -->
+            <div id="overview" class="page active">
+                <div class="page-title">Overview</div>
+                <div class="kpi-row">
+                    <div class="kpi-card"><div class="kpi-label">Total Output Value</div><div class="kpi-value" id="kpi-value">$1.53M</div></div>
+                    <div class="kpi-card"><div class="kpi-label">Total Units</div><div class="kpi-value" id="kpi-units">1,533,082</div></div>
+                    <div class="kpi-card"><div class="kpi-label">OEE</div><div class="kpi-value" id="kpi-oee">79.9%</div></div>
+                    <div class="kpi-card"><div class="kpi-label">First Pass Yield</div><div class="kpi-value" id="kpi-fpy">95.54%</div></div>
+                    <div class="kpi-card"><div class="kpi-label">Avg Cycle Time</div><div class="kpi-value" id="kpi-cycle">24.49</div></div>
+                </div>
+                <div class="content-area">
+                    <div class="charts-row">
+                        <div class="chart-box"><div class="chart-title">Total Output by Product Line</div><div class="chart-area"><canvas id="outputDonut"></canvas></div>
+                            <div class="chart-legend">
+                                <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div>Line A</div>
+                                <div class="legend-item"><div class="legend-dot" style="background:#1a365d"></div>Line B</div>
+                                <div class="legend-item"><div class="legend-dot" style="background:#4a7c59"></div>Line C</div>
+                                <div class="legend-item"><div class="legend-dot" style="background:#6b7280"></div>Line D</div>
+                            </div>
+                        </div>
+                        <div class="chart-box"><div class="chart-title">Total Output by Shift</div><div class="chart-area"><canvas id="shiftBar"></canvas></div></div>
+                        <div class="chart-box"><div class="chart-title">Monthly Output Trend</div><div class="chart-area"><canvas id="monthlyArea"></canvas></div></div>
+                    </div>
+                    <div class="charts-row">
+                        <div class="chart-box w30">
+                            <div class="chart-title">OEE Performance</div>
+                            <div class="chart-area">
+                                <div class="gauge-container">
+                                    <canvas id="oeeGauge"></canvas>
+                                    <div class="gauge-value"><div class="gauge-number" id="gauge-oee">79.9%</div><div class="gauge-label">Target: 85%</div></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="chart-box"><div class="chart-title">Production by Line & Shift</div><div class="chart-area"><canvas id="lineShiftCluster"></canvas></div></div>
+                        <div class="chart-box w70"><div class="chart-title">Production Line Performance</div>
+                            <table class="data-table" id="overviewTable">
+                                <thead><tr><th>Line</th><th>Total Units</th><th>Output Value</th><th>OEE %</th><th>FPY %</th><th>Cycle Time</th></tr></thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- PAGE 2: Quality -->
+            <div id="quality" class="page">
+                <div class="page-title">Quality Analytics</div>
+                <div class="kpi-row">
+                    <div class="kpi-card"><div class="kpi-label">Total Inspections</div><div class="kpi-value" id="kpi-insp">823,039</div></div>
+                    <div class="kpi-card"><div class="kpi-label">Pass Rate</div><div class="kpi-value" id="kpi-pass">95.54%</div></div>
+                    <div class="kpi-card"><div class="kpi-label">Defects Found</div><div class="kpi-value" id="kpi-defects">36,710</div></div>
+                    <div class="kpi-card"><div class="kpi-label">Rework Rate</div><div class="kpi-value" id="kpi-rework">3.12%</div></div>
+                    <div class="kpi-card"><div class="kpi-label">Scrap Rate</div><div class="kpi-value" id="kpi-scrap">1.34%</div></div>
+                </div>
+                <div class="content-area">
+                    <div class="charts-row">
+                        <div class="chart-box"><div class="chart-title">Defects by Type & Line</div><div class="chart-area"><canvas id="defectStackedCol"></canvas></div></div>
+                        <div class="chart-box"><div class="chart-title">First Pass Yield Trend</div><div class="chart-area"><canvas id="fpyLine"></canvas></div></div>
+                        <div class="chart-box w30"><div class="chart-title">Defect Distribution</div><div class="chart-area"><canvas id="defectDonut"></canvas></div>
+                            <div class="chart-legend">
+                                <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div>Dimensional</div>
+                                <div class="legend-item"><div class="legend-dot" style="background:#1a365d"></div>Surface</div>
+                                <div class="legend-item"><div class="legend-dot" style="background:#4a7c59"></div>Assembly</div>
+                                <div class="legend-item"><div class="legend-dot" style="background:#6b7280"></div>Other</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="charts-row">
+                        <div class="chart-box"><div class="chart-title">Defects by Shift</div><div class="chart-area"><canvas id="defectByShiftBar"></canvas></div></div>
+                        <div class="chart-box w30">
+                            <div class="chart-title">FPY Performance</div>
+                            <div class="chart-area">
+                                <div class="gauge-container">
+                                    <canvas id="fpyGauge"></canvas>
+                                    <div class="gauge-value"><div class="gauge-number" id="gauge-fpy">95.5%</div><div class="gauge-label">Target: 95%</div></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="chart-box"><div class="chart-title">Quality by Line</div>
+                            <table class="data-table" id="qualityTable">
+                                <thead><tr><th>Line</th><th>Inspected</th><th>Passed</th><th>FPY %</th><th>Defect Rate</th></tr></thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- PAGE 3: Process -->
+            <div id="process" class="page">
+                <div class="page-title">Process Capability</div>
+                <div class="kpi-row">
+                    <div class="kpi-card"><div class="kpi-label">Processes</div><div class="kpi-value">8</div></div>
+                    <div class="kpi-card"><div class="kpi-label">Avg Cpk</div><div class="kpi-value" id="kpi-cpk">1.23</div></div>
+                    <div class="kpi-card"><div class="kpi-label">In Control</div><div class="kpi-value" id="kpi-control">5</div></div>
+                    <div class="kpi-card"><div class="kpi-label">Need Attention</div><div class="kpi-value" id="kpi-attention">3</div></div>
+                    <div class="kpi-card"><div class="kpi-label">Target Met</div><div class="kpi-value" id="kpi-target">62.5%</div></div>
+                </div>
+                <div class="content-area">
+                    <div class="charts-row">
+                        <div class="chart-box"><div class="chart-title">Cpk vs Ppk by Process</div><div class="chart-area"><canvas id="cpkPpkBar"></canvas></div></div>
+                        <div class="chart-box"><div class="chart-title">Cpk Trend Over Time</div><div class="chart-area"><canvas id="cpkTrendLine"></canvas></div></div>
+                        <div class="chart-box w30">
+                            <div class="chart-title">Avg Cpk</div>
+                            <div class="chart-area">
+                                <div class="gauge-container">
+                                    <canvas id="cpkGauge"></canvas>
+                                    <div class="gauge-value"><div class="gauge-number" id="gauge-cpk">1.23</div><div class="gauge-label">Target: 1.33</div></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="charts-row">
+                        <div class="chart-box w30"><div class="chart-title">Process Status</div><div class="chart-area"><canvas id="processDonut"></canvas></div>
+                            <div class="chart-legend">
+                                <div class="legend-item"><div class="legend-dot" style="background:#4a7c59"></div>In Control</div>
+                                <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div>Marginal</div>
+                                <div class="legend-item"><div class="legend-dot" style="background:#dc2626"></div>Out of Control</div>
+                            </div>
+                        </div>
+                        <div class="chart-box"><div class="chart-title">Cpk by Process</div><div class="chart-area"><canvas id="cpkRadar"></canvas></div></div>
+                        <div class="chart-box"><div class="chart-title">Process Summary</div>
+                            <table class="data-table" id="processTable">
+                                <thead><tr><th>Process</th><th>Cpk</th><th>Ppk</th><th>Status</th></tr></thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- PAGE 4: Equipment -->
+            <div id="equipment" class="page">
+                <div class="page-title">Equipment</div>
+                <div class="kpi-row">
+                    <div class="kpi-card"><div class="kpi-label">Equipment Units</div><div class="kpi-value">8</div></div>
+                    <div class="kpi-card"><div class="kpi-label">Avg Utilization</div><div class="kpi-value" id="kpi-util">79.9%</div></div>
+                    <div class="kpi-card"><div class="kpi-label">Operating Hours</div><div class="kpi-value" id="kpi-ophrs">262,559</div></div>
+                    <div class="kpi-card"><div class="kpi-label">Downtime Hours</div><div class="kpi-value" id="kpi-downhrs">18,432</div></div>
+                    <div class="kpi-card"><div class="kpi-label">MTBF (hrs)</div><div class="kpi-value" id="kpi-mtbf">138</div></div>
+                </div>
+                <div class="content-area">
+                    <div class="charts-row">
+                        <div class="chart-box"><div class="chart-title">Equipment Utilization</div><div class="chart-area"><canvas id="utilizationStacked"></canvas></div></div>
+                        <div class="chart-box"><div class="chart-title">MTBF & MTTR Trend</div><div class="chart-area"><canvas id="mtbfLine"></canvas></div></div>
+                        <div class="chart-box w30">
+                            <div class="chart-title">Utilization</div>
+                            <div class="chart-area">
+                                <div class="gauge-container">
+                                    <canvas id="utilGauge"></canvas>
+                                    <div class="gauge-value"><div class="gauge-number" id="gauge-util">79.9%</div><div class="gauge-label">Target: 85%</div></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="charts-row">
+                        <div class="chart-box w30"><div class="chart-title">Downtime by Type</div><div class="chart-area"><canvas id="downtimeDonut"></canvas></div>
+                            <div class="chart-legend">
+                                <div class="legend-item"><div class="legend-dot" style="background:#dc2626"></div>Unplanned</div>
+                                <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div>Planned</div>
+                                <div class="legend-item"><div class="legend-dot" style="background:#4a7c59"></div>Changeover</div>
+                            </div>
+                        </div>
+                        <div class="chart-box"><div class="chart-title">MTBF vs OEE by Equipment</div><div class="chart-area"><canvas id="scatterPlot"></canvas></div></div>
+                        <div class="chart-box"><div class="chart-title">Equipment Scorecard</div>
+                            <table class="data-table" id="equipmentTable">
+                                <thead><tr><th>Equipment</th><th>Util %</th><th>MTBF</th><th>OEE %</th></tr></thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // ============ DATA ============
+        const masterData = {
+            'All': {
+                'All': { units: 1533082, value: 1.53, oee: 79.9, fpy: 95.54, cycle: 24.49, insp: 823039, defects: 36710, rework: 3.12, scrap: 1.34, downtime: 18432, opHrs: 262559, mtbf: 138 },
+                'Shift 1': { units: 545280, value: 0.55, oee: 81.2, fpy: 96.2, cycle: 24.2, insp: 292150, defects: 11098, rework: 2.8, scrap: 1.0, downtime: 5520, opHrs: 93400, mtbf: 145 },
+                'Shift 2': { units: 531652, value: 0.53, oee: 80.1, fpy: 95.8, cycle: 24.5, insp: 285210, defects: 11979, rework: 3.1, scrap: 1.1, downtime: 6130, opHrs: 91200, mtbf: 140 },
+                'Shift 3': { units: 456150, value: 0.45, oee: 78.4, fpy: 94.5, cycle: 24.8, insp: 245679, defects: 13633, rework: 3.6, scrap: 1.9, downtime: 6782, opHrs: 77959, mtbf: 128 }
+            },
+            'Line A': {
+                'All': { units: 425142, value: 0.43, oee: 82.1, fpy: 96.2, cycle: 24.2, insp: 215420, defects: 8186, rework: 2.5, scrap: 0.9, downtime: 4120, opHrs: 72800, mtbf: 152 },
+                'Shift 1': { units: 152840, value: 0.15, oee: 83.5, fpy: 96.8, cycle: 23.9, insp: 78120, defects: 2500, rework: 2.2, scrap: 0.7, downtime: 1180, opHrs: 26200, mtbf: 160 },
+                'Shift 2': { units: 148560, value: 0.15, oee: 82.8, fpy: 96.5, cycle: 24.1, insp: 75890, defects: 2656, rework: 2.4, scrap: 0.8, downtime: 1320, opHrs: 25400, mtbf: 155 },
+                'Shift 3': { units: 123742, value: 0.12, oee: 80.0, fpy: 95.2, cycle: 24.6, insp: 61410, defects: 3030, rework: 3.0, scrap: 1.3, downtime: 1620, opHrs: 21200, mtbf: 142 }
+            },
+            'Line B': {
+                'All': { units: 398456, value: 0.40, oee: 79.5, fpy: 95.1, cycle: 24.5, insp: 198756, defects: 9739, rework: 3.2, scrap: 1.4, downtime: 4850, opHrs: 68200, mtbf: 135 },
+                'Shift 1': { units: 142580, value: 0.14, oee: 80.8, fpy: 95.8, cycle: 24.2, insp: 72140, defects: 3030, rework: 2.8, scrap: 1.1, downtime: 1420, opHrs: 24500, mtbf: 142 },
+                'Shift 2': { units: 138920, value: 0.14, oee: 79.9, fpy: 95.3, cycle: 24.5, insp: 70280, defects: 3303, rework: 3.2, scrap: 1.3, downtime: 1580, opHrs: 23800, mtbf: 138 },
+                'Shift 3': { units: 116956, value: 0.12, oee: 77.8, fpy: 94.1, cycle: 24.9, insp: 56336, defects: 3406, rework: 3.8, scrap: 1.8, downtime: 1850, opHrs: 19900, mtbf: 125 }
+            },
+            'Line C': {
+                'All': { units: 412089, value: 0.41, oee: 81.3, fpy: 96.5, cycle: 24.1, insp: 221089, defects: 7738, rework: 2.3, scrap: 0.8, downtime: 4020, opHrs: 70600, mtbf: 148 },
+                'Shift 1': { units: 148120, value: 0.15, oee: 82.6, fpy: 97.0, cycle: 23.8, insp: 80250, defects: 2408, rework: 2.0, scrap: 0.6, downtime: 1150, opHrs: 25500, mtbf: 156 },
+                'Shift 2': { units: 144780, value: 0.14, oee: 81.8, fpy: 96.7, cycle: 24.0, insp: 78120, defects: 2578, rework: 2.2, scrap: 0.7, downtime: 1290, opHrs: 24800, mtbf: 150 },
+                'Shift 3': { units: 119189, value: 0.12, oee: 79.5, fpy: 95.7, cycle: 24.5, insp: 62719, defects: 2752, rework: 2.8, scrap: 1.2, downtime: 1580, opHrs: 20300, mtbf: 138 }
+            },
+            'Line D': {
+                'All': { units: 297395, value: 0.30, oee: 76.8, fpy: 93.9, cycle: 25.1, insp: 187774, defects: 11454, rework: 4.2, scrap: 1.9, downtime: 5442, opHrs: 50959, mtbf: 118 },
+                'Shift 1': { units: 101740, value: 0.10, oee: 78.2, fpy: 94.6, cycle: 24.8, insp: 61640, defects: 3329, rework: 3.8, scrap: 1.5, downtime: 1770, opHrs: 17200, mtbf: 125 },
+                'Shift 2': { units: 99392, value: 0.10, oee: 77.3, fpy: 94.2, cycle: 25.0, insp: 60920, defects: 3533, rework: 4.1, scrap: 1.7, downtime: 1940, opHrs: 17200, mtbf: 120 },
+                'Shift 3': { units: 96263, value: 0.10, oee: 74.9, fpy: 92.9, cycle: 25.5, insp: 65214, defects: 4592, rework: 4.8, scrap: 2.4, downtime: 1732, opHrs: 16559, mtbf: 108 }
+            }
+        };
+
+        const lineData = {
+            'Line A': { units: 425142, value: 0.43, oee: 82.1, fpy: 96.2, cycle: 24.2, defectRate: 3.8 },
+            'Line B': { units: 398456, value: 0.40, oee: 79.5, fpy: 95.1, cycle: 24.5, defectRate: 4.9 },
+            'Line C': { units: 412089, value: 0.41, oee: 81.3, fpy: 96.5, cycle: 24.1, defectRate: 3.5 },
+            'Line D': { units: 297395, value: 0.30, oee: 76.8, fpy: 93.9, cycle: 25.1, defectRate: 6.1 }
+        };
+
+        const colors = { orange: '#f59e0b', navy: '#1a365d', green: '#4a7c59', gray: '#6b7280', red: '#dc2626', teal: '#0e7490', purple: '#7c3aed' };
+        let charts = {};
+
+        // ============ NAVIGATION ============
+        function showPage(pageId, el) {
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            document.getElementById(pageId).classList.add('active');
+            el.classList.add('active');
+        }
+
+        // ============ FILTERS ============
+        function applyFilters() {
+            const line = document.getElementById('lineFilter').value;
+            const shift = document.getElementById('shiftFilter').value;
+            const data = masterData[line][shift];
+            
+            // Show filter badge
+            const badge = document.getElementById('filterBadge');
+            if (line !== 'All' || shift !== 'All') {
+                badge.textContent = (line !== 'All' ? line : '') + (line !== 'All' && shift !== 'All' ? ' + ' : '') + (shift !== 'All' ? shift : '');
+                badge.classList.add('show');
+            } else {
+                badge.classList.remove('show');
+            }
+            
+            // Animate KPIs
+            document.querySelectorAll('.kpi-card').forEach(c => { c.classList.add('updating'); setTimeout(() => c.classList.remove('updating'), 300); });
+            
+            // Update Overview KPIs
+            document.getElementById('kpi-value').textContent = '$' + data.value.toFixed(2) + 'M';
+            document.getElementById('kpi-units').textContent = data.units.toLocaleString();
+            document.getElementById('kpi-oee').textContent = data.oee + '%';
+            document.getElementById('kpi-fpy').textContent = data.fpy + '%';
+            document.getElementById('kpi-cycle').textContent = data.cycle;
+            document.getElementById('gauge-oee').textContent = data.oee + '%';
+            
+            // Update Quality KPIs
+            document.getElementById('kpi-insp').textContent = data.insp.toLocaleString();
+            document.getElementById('kpi-pass').textContent = data.fpy + '%';
+            document.getElementById('kpi-defects').textContent = data.defects.toLocaleString();
+            document.getElementById('kpi-rework').textContent = data.rework + '%';
+            document.getElementById('kpi-scrap').textContent = data.scrap + '%';
+            document.getElementById('gauge-fpy').textContent = data.fpy + '%';
+            
+            // Update Equipment KPIs
+            document.getElementById('kpi-util').textContent = data.oee + '%';
+            document.getElementById('kpi-ophrs').textContent = data.opHrs.toLocaleString();
+            document.getElementById('kpi-downhrs').textContent = data.downtime.toLocaleString();
+            document.getElementById('kpi-mtbf').textContent = data.mtbf;
+            document.getElementById('gauge-util').textContent = data.oee + '%';
+            
+            // Update Charts
+            updateCharts(line, shift, data);
+            updateTables(line);
+        }
+
+        function resetFilters() {
+            document.getElementById('lineFilter').value = 'All';
+            document.getElementById('shiftFilter').value = 'All';
+            applyFilters();
+        }
+
+        function updateCharts(line, shift, data) {
+            // Output Donut
+            if (line === 'All') {
+                charts.outputDonut.data.datasets[0].data = [27.7, 26.0, 26.9, 19.4];
+                charts.outputDonut.data.datasets[0].backgroundColor = [colors.orange, colors.navy, colors.green, colors.gray];
+            } else {
+                const idx = ['Line A', 'Line B', 'Line C', 'Line D'].indexOf(line);
+                charts.outputDonut.data.datasets[0].data = [27.7, 26.0, 26.9, 19.4].map((v, i) => i === idx ? v : 0);
+                charts.outputDonut.data.datasets[0].backgroundColor = [colors.orange, colors.navy, colors.green, colors.gray].map((c, i) => i === idx ? c : '#e5e5e5');
+            }
+            charts.outputDonut.update();
+            
+            // Shift Bar
+            const shiftUnits = {
+                'All': { s1: masterData[line]['Shift 1'].units, s2: masterData[line]['Shift 2'].units, s3: masterData[line]['Shift 3'].units },
+            };
+            const su = shiftUnits['All'];
+            if (shift === 'All') {
+                charts.shiftBar.data.datasets[0].data = [su.s1, su.s2, su.s3];
+                charts.shiftBar.data.datasets[0].backgroundColor = colors.orange;
+            } else {
+                charts.shiftBar.data.datasets[0].data = [shift === 'Shift 1' ? su.s1 : 0, shift === 'Shift 2' ? su.s2 : 0, shift === 'Shift 3' ? su.s3 : 0];
+                charts.shiftBar.data.datasets[0].backgroundColor = ['Shift 1', 'Shift 2', 'Shift 3'].map(s => s === shift ? colors.orange : '#e5e5e5');
+            }
+            charts.shiftBar.update();
+            
+            // OEE Gauge
+            charts.oeeGauge.data.datasets[0].data = [data.oee, 100 - data.oee];
+            charts.oeeGauge.update();
+            
+            // FPY Gauge
+            charts.fpyGauge.data.datasets[0].data = [data.fpy, 100 - data.fpy];
+            charts.fpyGauge.update();
+            
+            // Util Gauge
+            charts.utilGauge.data.datasets[0].data = [data.oee, 100 - data.oee];
+            charts.utilGauge.update();
+            
+            // Line Shift Cluster
+            if (line === 'All') {
+                charts.lineShiftCluster.data.datasets[0].data = [152840, 142580, 148120, 101740];
+                charts.lineShiftCluster.data.datasets[1].data = [148560, 138920, 144780, 99392];
+                charts.lineShiftCluster.data.datasets[2].data = [123742, 116956, 119189, 96263];
+            } else {
+                const ld = masterData[line];
+                charts.lineShiftCluster.data.labels = [line];
+                charts.lineShiftCluster.data.datasets[0].data = [ld['Shift 1'].units];
+                charts.lineShiftCluster.data.datasets[1].data = [ld['Shift 2'].units];
+                charts.lineShiftCluster.data.datasets[2].data = [ld['Shift 3'].units];
+            }
+            if (line === 'All') charts.lineShiftCluster.data.labels = ['Line A', 'Line B', 'Line C', 'Line D'];
+            charts.lineShiftCluster.update();
+        }
+
+        function updateTables(line) {
+            // Overview Table
+            const ot = document.querySelector('#overviewTable tbody');
+            ot.innerHTML = '';
+            const lines = line === 'All' ? ['Line A', 'Line B', 'Line C', 'Line D'] : [line];
+            lines.forEach(l => {
+                const d = lineData[l];
+                const cls = d.oee >= 80 ? 'cell-green' : d.oee >= 77 ? 'cell-yellow' : 'cell-red';
+                ot.innerHTML += `<tr class="${line !== 'All' ? 'highlight' : ''}"><td>${l}</td><td class="${cls}">${d.units.toLocaleString()}</td><td>$${d.value.toFixed(1)}M</td><td class="${cls}">${d.oee}</td><td>${d.fpy}</td><td>${d.cycle}</td></tr>`;
+            });
+            
+            // Quality Table
+            const qt = document.querySelector('#qualityTable tbody');
+            qt.innerHTML = '';
+            lines.forEach(l => {
+                const d = lineData[l];
+                const cls = d.defectRate <= 4 ? 'cell-green' : d.defectRate <= 5 ? 'cell-yellow' : 'cell-red';
+                qt.innerHTML += `<tr class="${line !== 'All' ? 'highlight' : ''}"><td>${l}</td><td>${Math.round(d.units * 0.51).toLocaleString()}</td><td>${Math.round(d.units * 0.51 * d.fpy / 100).toLocaleString()}</td><td>${d.fpy}%</td><td class="${cls}">${d.defectRate}%</td></tr>`;
+            });
+            
+            // Process Table
+            const pt = document.querySelector('#processTable tbody');
+            pt.innerHTML = `
+                <tr><td>CNC Turning</td><td>1.47</td><td>1.42</td><td class="cell-green">In Control</td></tr>
+                <tr><td>Grinding</td><td>1.52</td><td>1.48</td><td class="cell-green">In Control</td></tr>
+                <tr><td>Heat Treatment</td><td>1.15</td><td>1.10</td><td class="cell-yellow">Marginal</td></tr>
+                <tr><td>Assembly</td><td>1.08</td><td>1.02</td><td class="cell-yellow">Marginal</td></tr>
+                <tr><td>Welding</td><td>0.95</td><td>0.90</td><td class="cell-red">Out of Control</td></tr>
+            `;
+            
+            // Equipment Table
+            const et = document.querySelector('#equipmentTable tbody');
+            et.innerHTML = `
+                <tr><td>M001 - CNC Lathe</td><td class="cell-green">82.4%</td><td>156</td><td class="cell-green">81.2%</td></tr>
+                <tr><td>M002 - Mill</td><td class="cell-green">80.1%</td><td>142</td><td class="cell-yellow">79.5%</td></tr>
+                <tr><td>M003 - Grinder</td><td class="cell-yellow">78.5%</td><td>128</td><td class="cell-yellow">77.8%</td></tr>
+                <tr><td>M004 - Heat Treat</td><td class="cell-green">81.2%</td><td>148</td><td class="cell-green">80.1%</td></tr>
+                <tr><td>M005 - Welder</td><td class="cell-red">76.8%</td><td>112</td><td class="cell-red">75.2%</td></tr>
+            `;
+        }
+
+        // ============ INIT CHARTS ============
+        function initCharts() {
+            Chart.defaults.font.family = "'Segoe UI', sans-serif";
+            Chart.defaults.font.size = 10;
+            Chart.defaults.color = '#605e5c';
+            
+            // Overview - Donut
+            charts.outputDonut = new Chart(document.getElementById('outputDonut'), {
+                type: 'doughnut',
+                data: { labels: ['Line A', 'Line B', 'Line C', 'Line D'], datasets: [{ data: [27.7, 26.0, 26.9, 19.4], backgroundColor: [colors.orange, colors.navy, colors.green, colors.gray], borderWidth: 0 }] },
+                options: { responsive: true, maintainAspectRatio: false, cutout: '65%', plugins: { legend: { display: false } } }
+            });
+            
+            // Overview - Shift Bar
+            charts.shiftBar = new Chart(document.getElementById('shiftBar'), {
+                type: 'bar',
+                data: { labels: ['Shift 1', 'Shift 2', 'Shift 3'], datasets: [{ data: [545280, 531652, 456150], backgroundColor: colors.orange, borderRadius: 2 }] },
+                options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { grid: { display: false }, ticks: { callback: v => (v/1000).toFixed(0) + 'K' } }, y: { grid: { display: false } } } }
+            });
+            
+            // Overview - Area Chart (replacing column)
+            charts.monthlyArea = new Chart(document.getElementById('monthlyArea'), {
+                type: 'line',
+                data: { labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'], datasets: [{ data: [98, 102, 105, 108, 112, 106, 110, 115, 118, 120, 122, 130], borderColor: colors.navy, backgroundColor: 'rgba(26,54,93,0.15)', fill: true, tension: 0.4, pointRadius: 3, pointBackgroundColor: colors.navy }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { grid: { color: '#f3f2f1' }, ticks: { callback: v => '$' + v + 'K' } }, x: { grid: { display: false } } } }
+            });
+            
+            // Overview - OEE Gauge
+            charts.oeeGauge = new Chart(document.getElementById('oeeGauge'), {
+                type: 'doughnut',
+                data: { datasets: [{ data: [79.9, 20.1], backgroundColor: ['#1a365d', '#f3f2f1'], borderWidth: 0 }] },
+                options: { responsive: true, maintainAspectRatio: false, circumference: 180, rotation: -90, cutout: '80%', plugins: { legend: { display: false }, tooltip: { enabled: false } } }
+            });
+            
+            // Overview - Line Shift Clustered
+            charts.lineShiftCluster = new Chart(document.getElementById('lineShiftCluster'), {
+                type: 'bar',
+                data: { labels: ['Line A', 'Line B', 'Line C', 'Line D'], datasets: [
+                    { label: 'Shift 1', data: [152840, 142580, 148120, 101740], backgroundColor: colors.orange },
+                    { label: 'Shift 2', data: [148560, 138920, 144780, 99392], backgroundColor: colors.navy },
+                    { label: 'Shift 3', data: [123742, 116956, 119189, 96263], backgroundColor: colors.green }
+                ] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, padding: 8, font: { size: 9 } } } }, scales: { y: { grid: { color: '#f3f2f1' }, ticks: { callback: v => (v/1000) + 'K' } }, x: { grid: { display: false } } } }
+            });
+            
+            // Quality - Stacked Column
+            charts.defectStackedCol = new Chart(document.getElementById('defectStackedCol'), {
+                type: 'bar',
+                data: { labels: ['Line A', 'Line B', 'Line C', 'Line D'], datasets: [
+                    { label: 'Dimensional', data: [2800, 3200, 2400, 3350], backgroundColor: colors.orange },
+                    { label: 'Surface', data: [2100, 2400, 1800, 2506], backgroundColor: colors.navy },
+                    { label: 'Assembly', data: [1400, 1600, 1200, 1679], backgroundColor: colors.green },
+                    { label: 'Other', data: [1886, 2539, 2338, 3919], backgroundColor: colors.gray }
+                ] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, padding: 8, font: { size: 9 } } } }, scales: { y: { stacked: true, grid: { color: '#f3f2f1' } }, x: { stacked: true, grid: { display: false } } } }
+            });
+            
+            // Quality - FPY Line
+            charts.fpyLine = new Chart(document.getElementById('fpyLine'), {
+                type: 'line',
+                data: { labels: ['W1', 'W4', 'W8', 'W12', 'W16', 'W20', 'W24', 'W28', 'W32', 'W36', 'W40', 'W44'], datasets: [
+                    { label: 'FPY', data: [94.2, 94.5, 94.8, 95.1, 95.3, 95.6, 95.8, 95.4, 95.9, 95.7, 95.8, 95.5], borderColor: colors.green, backgroundColor: 'rgba(74,124,89,0.1)', fill: true, tension: 0.3, pointRadius: 2 },
+                    { label: 'Target', data: Array(12).fill(95), borderColor: colors.red, borderDash: [4, 4], pointRadius: 0, fill: false }
+                ] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, padding: 8, font: { size: 9 } } } }, scales: { y: { min: 93, max: 97, grid: { color: '#f3f2f1' } }, x: { grid: { display: false } } } }
+            });
+            
+            // Quality - Donut
+            charts.defectDonut = new Chart(document.getElementById('defectDonut'), {
+                type: 'doughnut',
+                data: { labels: ['Dimensional', 'Surface', 'Assembly', 'Other'], datasets: [{ data: [32, 24, 16, 28], backgroundColor: [colors.orange, colors.navy, colors.green, colors.gray], borderWidth: 0 }] },
+                options: { responsive: true, maintainAspectRatio: false, cutout: '65%', plugins: { legend: { display: false } } }
+            });
+            
+            // Quality - Defect by Shift (Horizontal Bar - replacing matrix)
+            charts.defectByShiftBar = new Chart(document.getElementById('defectByShiftBar'), {
+                type: 'bar',
+                data: { labels: ['Shift 1', 'Shift 2', 'Shift 3'], datasets: [
+                    { label: 'Line A', data: [2500, 2656, 3030], backgroundColor: colors.orange },
+                    { label: 'Line B', data: [3030, 3303, 3406], backgroundColor: colors.navy },
+                    { label: 'Line C', data: [2408, 2578, 2752], backgroundColor: colors.green },
+                    { label: 'Line D', data: [3329, 3533, 4592], backgroundColor: colors.gray }
+                ] },
+                options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, padding: 6, font: { size: 8 } } } }, scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: true, grid: { display: false } } } }
+            });
+            
+            // Quality - FPY Gauge
+            charts.fpyGauge = new Chart(document.getElementById('fpyGauge'), {
+                type: 'doughnut',
+                data: { datasets: [{ data: [95.5, 4.5], backgroundColor: [colors.green, '#f3f2f1'], borderWidth: 0 }] },
+                options: { responsive: true, maintainAspectRatio: false, circumference: 180, rotation: -90, cutout: '80%', plugins: { legend: { display: false }, tooltip: { enabled: false } } }
+            });
+            
+            // Process - Cpk Bar
+            charts.cpkPpkBar = new Chart(document.getElementById('cpkPpkBar'), {
+                type: 'bar',
+                data: { labels: ['Grinding', 'CNC Turn', 'Inspection', 'CNC Mill', 'Coating', 'Heat Treat', 'Assembly', 'Welding'], datasets: [
+                    { label: 'Cpk', data: [1.52, 1.47, 1.42, 1.38, 1.35, 1.15, 1.08, 0.95], backgroundColor: colors.navy },
+                    { label: 'Ppk', data: [1.48, 1.42, 1.38, 1.35, 1.30, 1.10, 1.02, 0.90], backgroundColor: colors.orange }
+                ] },
+                options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, padding: 8, font: { size: 9 } } } }, scales: { x: { min: 0, max: 2, grid: { color: '#f3f2f1' } }, y: { grid: { display: false } } } }
+            });
+            
+            // Process - Cpk Trend Line
+            charts.cpkTrendLine = new Chart(document.getElementById('cpkTrendLine'), {
+                type: 'line',
+                data: { labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'], datasets: [
+                    { label: 'Grinding', data: [1.48, 1.49, 1.50, 1.51, 1.50, 1.52, 1.51, 1.53, 1.52, 1.51, 1.52, 1.52], borderColor: colors.green, borderWidth: 2, pointRadius: 2, tension: 0.3 },
+                    { label: 'Assembly', data: [1.12, 1.11, 1.10, 1.09, 1.10, 1.08, 1.09, 1.07, 1.08, 1.09, 1.08, 1.08], borderColor: colors.orange, borderWidth: 2, pointRadius: 2, tension: 0.3 },
+                    { label: 'Welding', data: [1.02, 1.00, 0.98, 0.97, 0.96, 0.95, 0.96, 0.94, 0.95, 0.96, 0.95, 0.95], borderColor: colors.red, borderWidth: 2, pointRadius: 2, tension: 0.3 },
+                    { label: 'Target', data: Array(12).fill(1.33), borderColor: '#a19f9d', borderDash: [4, 4], pointRadius: 0 }
+                ] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, padding: 6, font: { size: 8 } } } }, scales: { y: { min: 0.8, max: 1.7, grid: { color: '#f3f2f1' } }, x: { grid: { display: false } } } }
+            });
+            
+            // Process - Cpk Gauge
+            charts.cpkGauge = new Chart(document.getElementById('cpkGauge'), {
+                type: 'doughnut',
+                data: { datasets: [{ data: [61.5, 38.5], backgroundColor: [colors.orange, '#f3f2f1'], borderWidth: 0 }] },
+                options: { responsive: true, maintainAspectRatio: false, circumference: 180, rotation: -90, cutout: '80%', plugins: { legend: { display: false }, tooltip: { enabled: false } } }
+            });
+            
+            // Process - Donut
+            charts.processDonut = new Chart(document.getElementById('processDonut'), {
+                type: 'doughnut',
+                data: { labels: ['In Control', 'Marginal', 'Out of Control'], datasets: [{ data: [5, 2, 1], backgroundColor: [colors.green, colors.orange, colors.red], borderWidth: 0 }] },
+                options: { responsive: true, maintainAspectRatio: false, cutout: '65%', plugins: { legend: { display: false } } }
+            });
+            
+            // Process - Radar Chart (replacing matrix)
+            charts.cpkRadar = new Chart(document.getElementById('cpkRadar'), {
+                type: 'radar',
+                data: { labels: ['CNC Turn', 'Grinding', 'Milling', 'Heat Treat', 'Assembly', 'Welding', 'Inspection', 'Coating'], datasets: [
+                    { label: 'Cpk', data: [1.47, 1.52, 1.38, 1.15, 1.08, 0.95, 1.42, 1.35], borderColor: colors.navy, backgroundColor: 'rgba(26,54,93,0.2)', pointRadius: 3 },
+                    { label: 'Target', data: [1.33, 1.33, 1.33, 1.33, 1.33, 1.33, 1.33, 1.33], borderColor: colors.red, borderDash: [4, 4], pointRadius: 0, fill: false }
+                ] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, padding: 6, font: { size: 8 } } } }, scales: { r: { min: 0, max: 2, ticks: { stepSize: 0.5 } } } }
+            });
+            
+            // Equipment - Stacked Column
+            charts.utilizationStacked = new Chart(document.getElementById('utilizationStacked'), {
+                type: 'bar',
+                data: { labels: ['M001', 'M002', 'M003', 'M004', 'M005', 'M006', 'M007', 'M008'], datasets: [
+                    { label: 'Operating', data: [82.4, 80.1, 78.5, 81.2, 76.8, 79.3, 80.8, 79.9], backgroundColor: colors.green },
+                    { label: 'Setup', data: [6.5, 7.2, 7.8, 6.8, 8.2, 7.5, 7.0, 7.3], backgroundColor: colors.orange },
+                    { label: 'Downtime', data: [11.1, 12.7, 13.7, 12.0, 15.0, 13.2, 12.2, 12.8], backgroundColor: colors.red }
+                ] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, padding: 8, font: { size: 9 } } } }, scales: { y: { stacked: true, max: 100, grid: { color: '#f3f2f1' } }, x: { stacked: true, grid: { display: false } } } }
+            });
+            
+            // Equipment - MTBF Line
+            charts.mtbfLine = new Chart(document.getElementById('mtbfLine'), {
+                type: 'line',
+                data: { labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'], datasets: [
+                    { label: 'MTBF', data: [125, 128, 132, 135, 138, 142, 140, 145, 148, 150, 152, 156], borderColor: colors.navy, backgroundColor: 'rgba(26,54,93,0.1)', fill: true, tension: 0.3, pointRadius: 2, yAxisID: 'y' },
+                    { label: 'MTTR', data: [4.2, 4.0, 3.8, 3.9, 3.7, 3.5, 3.6, 3.4, 3.3, 3.2, 3.1, 3.0], borderColor: colors.red, tension: 0.3, pointRadius: 2, yAxisID: 'y1' }
+                ] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, padding: 8, font: { size: 9 } } } }, scales: { y: { type: 'linear', position: 'left', grid: { color: '#f3f2f1' } }, y1: { type: 'linear', position: 'right', grid: { display: false } }, x: { grid: { display: false } } } }
+            });
+            
+            // Equipment - Util Gauge
+            charts.utilGauge = new Chart(document.getElementById('utilGauge'), {
+                type: 'doughnut',
+                data: { datasets: [{ data: [79.9, 20.1], backgroundColor: [colors.green, '#f3f2f1'], borderWidth: 0 }] },
+                options: { responsive: true, maintainAspectRatio: false, circumference: 180, rotation: -90, cutout: '80%', plugins: { legend: { display: false }, tooltip: { enabled: false } } }
+            });
+            
+            // Equipment - Downtime Donut
+            charts.downtimeDonut = new Chart(document.getElementById('downtimeDonut'), {
+                type: 'doughnut',
+                data: { labels: ['Unplanned', 'Planned', 'Changeover', 'Maintenance', 'Material'], datasets: [{ data: [30, 25, 20, 15, 10], backgroundColor: [colors.red, colors.orange, colors.green, colors.navy, colors.gray], borderWidth: 0 }] },
+                options: { responsive: true, maintainAspectRatio: false, cutout: '65%', plugins: { legend: { display: false } } }
+            });
+            
+            // Equipment - Scatter
+            charts.scatterPlot = new Chart(document.getElementById('scatterPlot'), {
+                type: 'scatter',
+                data: { datasets: [
+                    { label: 'M001', data: [{ x: 156, y: 81.2 }], backgroundColor: colors.orange, pointRadius: 10 },
+                    { label: 'M002', data: [{ x: 142, y: 79.5 }], backgroundColor: colors.navy, pointRadius: 10 },
+                    { label: 'M003', data: [{ x: 128, y: 77.8 }], backgroundColor: colors.green, pointRadius: 10 },
+                    { label: 'M004', data: [{ x: 148, y: 80.1 }], backgroundColor: colors.teal, pointRadius: 10 },
+                    { label: 'M005', data: [{ x: 112, y: 75.2 }], backgroundColor: colors.red, pointRadius: 10 },
+                    { label: 'M006', data: [{ x: 135, y: 78.6 }], backgroundColor: colors.purple, pointRadius: 10 },
+                    { label: 'M007', data: [{ x: 145, y: 79.9 }], backgroundColor: colors.gray, pointRadius: 10 },
+                    { label: 'M008', data: [{ x: 138, y: 79.1 }], backgroundColor: '#ec4899', pointRadius: 10 }
+                ] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 8, padding: 4, font: { size: 8 } } } }, scales: { x: { title: { display: true, text: 'MTBF', font: { size: 9 } }, grid: { color: '#f3f2f1' }, min: 100, max: 170 }, y: { title: { display: true, text: 'OEE %', font: { size: 9 } }, grid: { color: '#f3f2f1' }, min: 73, max: 83 } } }
+            });
+        }
+
+        // Initialize
+        initCharts();
+        updateTables('All');
+    </script>
+</body>
+</html>
